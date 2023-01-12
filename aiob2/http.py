@@ -214,7 +214,6 @@ class HTTPClient:
         headers['User-Agent'] = self.user_agent
 
         for tries in range(5):
-            print(f'Route: {route.url}')
             # authorize_account uses the app_id/key, which don't change
             if self.refresh_headers and route.action != 'authorize_account':
                 route, headers = self._refresh_headers(route, headers, bucket_id=bucket_id)
