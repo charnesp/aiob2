@@ -28,7 +28,7 @@ class Client:
         application_key_id: str,
         application_key: str,
         *,
-        session: Optional[aiohttp.ClientSession] = None
+        session: Optional[aiohttp.ClientSession] = None,
     ):
         self._http = HTTPClient(application_key_id, application_key, session)
         self._bucket_list = None
@@ -129,7 +129,13 @@ class Client:
         return files
 
     async def upload_file(
-        self, *, content_bytes: bytes, content_type: str, file_name: str, bucket_id: str
+        self,
+        *,
+        content_bytes: bytes,
+        content_type: str,
+        file_name: str,
+        bucket_id: Optional[str] = None,
+        bucket_name: Optional[str] = None,
     ) -> File:
         """Uploads a file to a bucket.
 
@@ -141,14 +147,18 @@ class Client:
             The content type of the content_bytes, e.g. video/mp4.
         file_name: :class:`str`
             The name of the file.
-        bucket_id: :class:`str`
-            The ID of the bucket to upload to.
+        bucket_id: Optional[:class:`str`]
+            The ID of the bucket to upload to. To privilege if possible
+        bucket_name: Optional[:class:`str`]
+            The name of the bucket to upload to.
 
         Returns
         ---------
         :class:`File`
             The uploaded file.
         """
+        if bucket_id is None:
+           bucket_id = await self.get_bucket_from_name(bucket_name).bucketId
 
         data = await (
             await self._http.upload_file(
@@ -189,7 +199,7 @@ class Client:
         cache_control: Optional[str] = None,
         content_encoding: Optional[str] = None,
         content_type: Optional[str] = None,
-        server_side_encryption: Optional[str] = None
+        server_side_encryption: Optional[str] = None,
     ) -> DownloadedFile:
         """Downloads a file.
 
@@ -242,7 +252,7 @@ class Client:
         cache_control: Optional[str] = None,
         content_encoding: Optional[str] = None,
         content_type: Optional[str] = None,
-        server_side_encryption: Optional[str] = None
+        server_side_encryption: Optional[str] = None,
     ) -> DownloadedFile:
         """Downloads a file.
 
