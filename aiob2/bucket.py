@@ -158,7 +158,8 @@ class Client:
             The uploaded file.
         """
         if bucket_id is None:
-           bucket_id = await self.get_bucket_from_name(bucket_name).bucketId
+           bucket_ = await self.get_bucket_from_name(bucket_name)
+           bucket_id = bucket.bucketId
 
         data = await (
             await self._http.upload_file(
