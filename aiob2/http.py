@@ -50,6 +50,18 @@ class UploadURLPayload(TypedDict):
     authorizationToken: str
 
 
+class BucketInfo(NamedTuple):
+    bucketId: str
+    bucketInfo: dict
+    bucketName: str
+    bucketType: str
+    defaultServerSideEncryption: dict
+    fileLockConfiguration: dict
+    lifecycleRules: list
+    options: list
+    revision: int
+
+
 class BucketUploadInfo(NamedTuple):
     url: str
     token: str
@@ -215,9 +227,47 @@ class HTTPClient:
 
         return BucketUploadInfo(response["uploadUrl"], response["authorizationToken"])
 
+    async def _get_list_buckets(self) -> list:
+        """Fetches the bucket list
+
+        Returns:
+            list: _description_
+        """
+
+        route = Route(
+            "GET",
+            "/b2api/v2/b2_list_buckets",
+            override_base=self._api_url,
+            action="other",
+        )
+        headers = {"Authorization": self._authorization_token}
+        params = {"accountId": self._account_id}
+        response = await self.request(route, headers=headers, params=params)
+
+        return [
+            BucketInfo(
+                bucket["bucketId"],
+                bucket["bucketInfo"],
+                bucket["bucketName"],
+                bucket["bucketType"],
+                bucket["defaultServerSideEncryption"],
+                bucket["fileLockConfiguration"],
+                bucket["lifecycleRules"],
+                bucket["options"],
+                bucket["revision"],
+            )
+            for bucket in response["buckets"]
+        ]
+
     def _refresh_headers(
-        self, route: Route, headers: Dict[str, Any], *, bucket_id: Optional[str]
-    ) -> Tuple[Route, Dict[str, Any]]:
+        self, 
+        route: Route, 
+        headers: Dict[str, Any], 
+        params: Any,
+        *, 
+        bucket_id: Optional[str], 
+    ) -> Tuple[Route, Dict[str, Any], Any]:
+
         if route.action == "upload":
             assert bucket_id is not None
             upload_info = self._upload_urls[bucket_id]
@@ -235,10 +285,15 @@ class HTTPClient:
         elif route.action == "other":
             headers["Authorization"] = self._authorization_token
             route = Route(
-                "GET", route.path, override_base=self._api_url, action="other"
+                "GET",
+                route.path,
+                override_base=self._api_url,
+                action="other",
+                **route.parameters,
             )
-
-        return route, headers
+        if (params is not None) and ("accountId" in params):
+            params["accountId"] = self._account_id
+        return route, headers, params
 
     async def request(
         self, route: Route, *, bucket_id: Optional[str] = None, **kwargs: Any
@@ -254,15 +309,19 @@ class HTTPClient:
         headers: Dict[str, str] = kwargs.pop("headers")
         headers["User-Agent"] = self.user_agent
 
+        if "params" in kwargs:
+            params: Dict[str, str] = kwargs.pop("params")
+        else:
+            params = None
+
         for tries in range(5):
             # authorize_account uses the app_id/key, which don't change
             if self.refresh_headers and route.action != "authorize_account":
-                route, headers = self._refresh_headers(
-                    route, headers, bucket_id=bucket_id
+                route, headers, params = self._refresh_headers(
+                    route, headers, params, bucket_id=bucket_id
                 )
-
             async with self._session.request(
-                route.method, route.url, headers=headers, **kwargs
+                route.method, route.url, headers=headers, params=params, **kwargs
             ) as response:
                 data = await json_or_bytes(response, route)
 

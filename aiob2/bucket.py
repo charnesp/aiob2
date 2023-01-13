@@ -3,7 +3,9 @@ from typing import Optional, Any
 import aiohttp
 
 from .models import File, DeletedFile, DownloadedFile
-from .http import HTTPClient
+from .http import HTTPClient, BucketInfo
+
+from .errors import BackblazeException
 
 __all__ = ("Client",)
 
@@ -29,6 +31,7 @@ class Client:
         session: Optional[aiohttp.ClientSession] = None
     ):
         self._http = HTTPClient(application_key_id, application_key, session)
+        self._bucket_list = None
 
     async def __aenter__(self):
         return self
@@ -40,6 +43,29 @@ class Client:
         # This is really only possible if a Client is instantiated and no request is ever made
         if isinstance(self._http._session, aiohttp.ClientSession):
             await self._http._session.close()
+
+    async def list_buckets(self):
+        if self._bucket_list is None:
+            self._bucket_list = await self._http._get_list_buckets()
+        return self._bucket_list
+
+    async def get_bucket_from_name(self, bucket_name: str) -> BucketInfo:
+        """Retrieve the bucket id from the bucket name
+
+        Args:
+            bucket_name (str): _description_
+
+        Returns:
+            str: bucket_id
+        """
+        bucket_list = await self.list_buckets()
+
+        for bucket in bucket_list:
+            if bucket.bucketName == bucket_name:
+                return bucket
+
+        # We did not found bucket
+        raise BackblazeException(f"Unknown bucket {bucket_name}")
 
     async def list_file_names(
         self,
